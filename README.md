@@ -54,6 +54,19 @@ func main() {
 }
 ```
 
+`NormalizeMoveList` does the same thing for a whole line of PGN
+movetext - move numbers and the trailing game result are recognized
+and dropped rather than treated as moves:
+
+```go
+moves, err := sanfmt.NormalizeMoveList("1. e4 e5 2. Nf3 Nc6 1-0")
+// moves == []string{"e4", "e5", "Nf3", "Nc6"}
+```
+
+If some tokens fail to parse, `err` reports all of them (joined) but
+`moves` still holds every token that normalized successfully. Comments,
+NAG codes, and parenthesized variations aren't supported yet.
+
 As a command line filter, one move per line:
 
 ```
@@ -69,9 +82,9 @@ non-zero, without stopping processing of the rest of the input.
 
 ## Status
 
-Single-move normalization only - no game/PGN parsing yet, and no
-legality checking. See the test file for the exact set of input forms
-currently handled.
+Single moves and plain PGN movetext (move numbers and results stripped,
+no comments or variations) are handled; no legality checking. See the
+test file for the exact set of input forms currently handled.
 
 ## License
 

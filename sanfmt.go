@@ -20,10 +20,12 @@ import (
 var ErrEmpty = errors.New("sanfmt: empty move")
 
 var (
-	moveNumberRe = regexp.MustCompile(`^\d+\.+\s*`)
-	castleRe     = regexp.MustCompile(`^[Oo0](-?[Oo0]){1,2}$`)
-	promoRe      = regexp.MustCompile(`(?i)(?:[=/])?\(?([qrbns])\)?$`)
-	baseRe       = regexp.MustCompile(`^([KQRBNkqrbnSs]?)([a-h]?[1-8]?)([xX:]?)([a-h][1-8])$`)
+	moveNumberRe     = regexp.MustCompile(`^\d+\.+\s*`)
+	moveNumberOnlyRe = regexp.MustCompile(`^\d+\.+$`)
+	resultRe         = regexp.MustCompile(`^(1-0|0-1|1/2-1/2|\*)$`)
+	castleRe         = regexp.MustCompile(`^[Oo0](-?[Oo0]){1,2}$`)
+	promoRe          = regexp.MustCompile(`(?i)(?:[=/])?\(?([qrbns])\)?$`)
+	baseRe           = regexp.MustCompile(`^([KQRBNkqrbnSs]?)([a-h]?[1-8]?)([xX:]?)([a-h][1-8])$`)
 )
 
 // suffixPatterns must stay in this order: "checkmate" has to be tried
@@ -83,6 +85,37 @@ func Normalize(input string) (string, error) {
 		return "", fmt.Errorf("sanfmt: %q: %w", input, err)
 	}
 	return body + suffix, nil
+}
+
+// NormalizeMoveList splits a PGN-style movetext string - the part of a
+// game record after the tag pairs, e.g. "1. e4 e5 2. Nf3 Nc6 1-0" - into
+// individual moves and normalizes each one. Move number tokens ("1.",
+// "12...") and game results ("1-0", "0-1", "1/2-1/2", "*") are recognized
+// and dropped rather than treated as moves; a move number glued to the
+// following move ("1.e4") is handled the same way by Normalize itself.
+//
+// Comments in braces, NAG codes ($1), and parenthesized variations are
+// not supported - movetext must be a plain move sequence.
+//
+// NormalizeMoveList returns every move that normalized successfully, in
+// order. If one or more tokens failed to parse, it also returns a
+// non-nil error built with errors.Join describing all of them; the
+// caller can still use the moves that did succeed.
+func NormalizeMoveList(input string) ([]string, error) {
+	var moves []string
+	var errs []error
+	for _, field := range strings.Fields(input) {
+		if moveNumberOnlyRe.MatchString(field) || resultRe.MatchString(field) {
+			continue
+		}
+		clean, err := Normalize(field)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		moves = append(moves, clean)
+	}
+	return moves, errors.Join(errs...)
 }
 
 func extractSuffix(s string) (suffix, rest string) {

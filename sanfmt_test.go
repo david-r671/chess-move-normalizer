@@ -1,6 +1,9 @@
 package sanfmt
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalize(t *testing.T) {
 	cases := []struct {
@@ -59,6 +62,96 @@ func TestNormalize(t *testing.T) {
 				t.Errorf("Normalize(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeMoveList(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			"numbered pairs with spaces",
+			"1. e4 e5 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"move number glued to move",
+			"1.e4 e5 2.Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"black move number with ellipsis",
+			"1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 12... Nf6",
+			[]string{"e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Nf6"},
+		},
+		{
+			"trailing decisive result is dropped",
+			"1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7#  1-0",
+			[]string{"e4", "e5", "Qh5", "Nc6", "Bc4", "Nf6", "Qxf7#"},
+		},
+		{
+			"trailing black win result is dropped",
+			"1. f3 e5 2. g4 Qh4mate 0-1",
+			[]string{"f3", "e5", "g4", "Qh4#"},
+		},
+		{
+			"trailing draw result is dropped",
+			"1. e4 e5 1/2-1/2",
+			[]string{"e4", "e5"},
+		},
+		{
+			"in-progress marker is dropped",
+			"1. e4 e5 *",
+			[]string{"e4", "e5"},
+		},
+		{
+			"loose notation mixed in",
+			"1. e4 e5 2. N x f3 ch",
+			[]string{"e4", "e5", "Nxf3+"},
+		},
+		{
+			"empty input yields no moves",
+			"",
+			nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := NormalizeMoveList(tc.input)
+			if err != nil {
+				t.Fatalf("NormalizeMoveList(%q) returned error: %v", tc.input, err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("NormalizeMoveList(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("NormalizeMoveList(%q)[%d] = %q, want %q", tc.input, i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeMoveListErrors(t *testing.T) {
+	got, err := NormalizeMoveList("1. e4 banana 2. Nf3 Nc6")
+	if err == nil {
+		t.Fatalf("NormalizeMoveList returned no error for a bad token")
+	}
+	if !strings.Contains(err.Error(), "banana") {
+		t.Errorf("error %v does not mention the bad token", err)
+	}
+	want := []string{"e4", "Nf3", "Nc6"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("got[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 
