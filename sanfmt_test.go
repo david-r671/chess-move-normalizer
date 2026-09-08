@@ -65,6 +65,55 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
+func TestParse(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  Move
+	}{
+		{"plain pawn push", "e4", Move{To: "e4"}},
+		{"plain piece move", "Nf3", Move{Piece: 'N', To: "f3"}},
+		{"lowercase piece letter", "nf3", Move{Piece: 'N', To: "f3"}},
+		{"pawn capture keeps file disambig", "exd5", Move{From: "e", Capture: true, To: "d5"}},
+		{"colon capture (old notation)", "N:e4", Move{Piece: 'N', Capture: true, To: "e4"}},
+		{"rank disambiguation", "R1a3", Move{Piece: 'R', From: "1", To: "a3"}},
+		{"file disambiguation", "Nbd7", Move{Piece: 'N', From: "b", To: "d7"}},
+		{"full disambiguation", "Qh4e1", Move{Piece: 'Q', From: "h4", To: "e1"}},
+		{"german knight letter", "Sf3", Move{Piece: 'N', To: "f3"}},
+		{"promotion without equals", "e8Q", Move{To: "e8", Promotion: 'Q'}},
+		{"capture and promotion combined", "exd8Q", Move{From: "e", Capture: true, To: "d8", Promotion: 'Q'}},
+		{"check suffix kept", "e4+", Move{To: "e4", Suffix: "+"}},
+		{"mate spelled out", "Qh5mate", Move{Piece: 'Q', To: "h5", Suffix: "#"}},
+		{"castling kingside", "O-O", Move{Castle: Kingside}},
+		{"castling queenside", "0-0-0", Move{Castle: Queenside}},
+		{"castling with check suffix", "O-O+", Move{Castle: Kingside, Suffix: "+"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Parse(tc.input)
+			if err != nil {
+				t.Fatalf("Parse(%q) returned error: %v", tc.input, err)
+			}
+			if got != tc.want {
+				t.Errorf("Parse(%q) = %+v, want %+v", tc.input, got, tc.want)
+			}
+			if got.String() != mustNormalize(t, tc.input) {
+				t.Errorf("Parse(%q).String() = %q, want %q", tc.input, got.String(), mustNormalize(t, tc.input))
+			}
+		})
+	}
+}
+
+func mustNormalize(t *testing.T, input string) string {
+	t.Helper()
+	got, err := Normalize(input)
+	if err != nil {
+		t.Fatalf("Normalize(%q) returned error: %v", input, err)
+	}
+	return got
+}
+
 func TestNormalizeMoveList(t *testing.T) {
 	cases := []struct {
 		name  string

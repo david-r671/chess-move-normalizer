@@ -43,6 +43,63 @@ var suffixPatterns = []struct {
 	{regexp.MustCompile(`\+$`), "+"},
 }
 
+// CastleSide identifies which side, if either, a Move castles toward.
+type CastleSide int
+
+const (
+	NoCastle CastleSide = iota
+	Kingside
+	Queenside
+)
+
+// Move holds the parsed pieces of a single SAN move. Zero values mean
+// "not present": Piece is 0 for pawn moves, Promotion is 0 when there
+// is no promotion, and From is "" when the input carried no
+// disambiguation.
+//
+// From holds whatever disambiguating text the input contained - a
+// file, a rank, or a full square - taken as-is. It is not validated
+// against a board, so a from-square copied out of a Move is only as
+// trustworthy as the input was.
+//
+// Castle moves leave Piece, From, To, Capture, and Promotion at their
+// zero values; only Castle and Suffix are meaningful.
+type Move struct {
+	Piece     byte
+	From      string
+	To        string
+	Capture   bool
+	Promotion byte
+	Castle    CastleSide
+	Suffix    string // "", "+", or "#"
+}
+
+// String renders the Move back into clean SAN.
+func (m Move) String() string {
+	switch m.Castle {
+	case Kingside:
+		return "O-O" + m.Suffix
+	case Queenside:
+		return "O-O-O" + m.Suffix
+	}
+
+	var b strings.Builder
+	if m.Piece != 0 {
+		b.WriteByte(m.Piece)
+	}
+	b.WriteString(m.From)
+	if m.Capture {
+		b.WriteByte('x')
+	}
+	b.WriteString(m.To)
+	if m.Promotion != 0 {
+		b.WriteByte('=')
+		b.WriteByte(m.Promotion)
+	}
+	b.WriteString(m.Suffix)
+	return b.String()
+}
+
 // Normalize takes a single move in loosely formatted algebraic notation
 // and returns it as clean SAN: piece letters uppercase (pawns carry no
 // letter), captures written as "x", promotions as "=Q", castling as
@@ -52,39 +109,52 @@ var suffixPatterns = []struct {
 // whether the move is legal. Descriptive notation ("P-K4") is out of
 // scope; only algebraic input is accepted.
 func Normalize(input string) (string, error) {
+	m, err := Parse(input)
+	if err != nil {
+		return "", err
+	}
+	return m.String(), nil
+}
+
+// Parse takes a single move in loosely formatted algebraic notation and
+// breaks it down into a Move. It accepts the same input as Normalize
+// and fails under the same conditions.
+func Parse(input string) (Move, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
-		return "", ErrEmpty
+		return Move{}, ErrEmpty
 	}
 
 	s = moveNumberRe.ReplaceAllString(s, "")
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return "", ErrEmpty
+		return Move{}, ErrEmpty
 	}
 
 	compact := strings.Join(strings.Fields(s), "")
 	if compact == "" {
-		return "", ErrEmpty
+		return Move{}, ErrEmpty
 	}
 
 	suffix, rest := extractSuffix(compact)
 	if rest == "" {
-		return "", fmt.Errorf("sanfmt: %q has no move body", input)
+		return Move{}, fmt.Errorf("sanfmt: %q has no move body", input)
 	}
 
 	if kingside, ok := castleSide(rest); ok {
+		side := Queenside
 		if kingside {
-			return "O-O" + suffix, nil
+			side = Kingside
 		}
-		return "O-O-O" + suffix, nil
+		return Move{Castle: side, Suffix: suffix}, nil
 	}
 
-	body, err := parseMove(rest)
+	m, err := parseMove(rest)
 	if err != nil {
-		return "", fmt.Errorf("sanfmt: %q: %w", input, err)
+		return Move{}, fmt.Errorf("sanfmt: %q: %w", input, err)
 	}
-	return body + suffix, nil
+	m.Suffix = suffix
+	return m, nil
 }
 
 // NormalizeMoveList splits a PGN-style movetext string - the part of a
@@ -135,28 +205,31 @@ func castleSide(s string) (kingside, ok bool) {
 	return n == 2, true
 }
 
-func parseMove(s string) (string, error) {
-	promo := ""
+func parseMove(s string) (Move, error) {
+	var promo byte
 	if loc := promoRe.FindStringSubmatchIndex(s); loc != nil {
 		letter := normalizePieceLetter(s[loc[2]:loc[3]])
-		promo = "=" + letter
+		promo = letter[0]
 		s = s[:loc[0]]
 	}
 
-	m := baseRe.FindStringSubmatch(s)
-	if m == nil {
-		return "", fmt.Errorf("unrecognized move syntax %q", s)
+	groups := baseRe.FindStringSubmatch(s)
+	if groups == nil {
+		return Move{}, fmt.Errorf("unrecognized move syntax %q", s)
 	}
 
-	piece := normalizePieceLetter(m[1])
-	disambig := m[2]
-	capture := ""
-	if m[3] != "" {
-		capture = "x"
+	var piece byte
+	if letter := normalizePieceLetter(groups[1]); letter != "" {
+		piece = letter[0]
 	}
-	dest := m[4]
 
-	return piece + disambig + capture + dest + promo, nil
+	return Move{
+		Piece:     piece,
+		From:      groups[2],
+		Capture:   groups[3] != "",
+		To:        groups[4],
+		Promotion: promo,
+	}, nil
 }
 
 // normalizePieceLetter uppercases a piece letter and maps the German
