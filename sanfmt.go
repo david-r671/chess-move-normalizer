@@ -213,6 +213,8 @@ func parseMove(s string) (Move, error) {
 		s = s[:loc[0]]
 	}
 
+	s = stripPawnLetter(s)
+
 	groups := baseRe.FindStringSubmatch(s)
 	if groups == nil {
 		return Move{}, fmt.Errorf("unrecognized move syntax %q", s)
@@ -230,6 +232,17 @@ func parseMove(s string) (Move, error) {
 		To:        groups[4],
 		Promotion: promo,
 	}, nil
+}
+
+// stripPawnLetter drops a leading "P"/"p" some older notation styles
+// use to mark a pawn move explicitly. SAN pawn moves carry no piece
+// letter, and P is never a valid file, rank, or piece letter otherwise,
+// so a leading P can only mean this.
+func stripPawnLetter(s string) string {
+	if len(s) > 0 && (s[0] == 'P' || s[0] == 'p') {
+		return s[1:]
+	}
+	return s
 }
 
 // normalizePieceLetter uppercases a piece letter and maps the German

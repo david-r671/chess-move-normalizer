@@ -25,6 +25,7 @@ out of scope.
 ## What it normalizes
 
 - Piece letters: lowercase or German `S` (Springer) -> uppercase, `S` -> `N`
+- Explicit pawn letter: `Pe4` -> `e4`
 - Captures: `x`, `X`, `:`, or spaced (`N x e4`) -> `x`
 - Castling: `0-0`, `o-o`, `OO` -> `O-O`; same idea for queenside
 - Promotion: `e8Q`, `e8/Q`, `e8(Q)` -> `e8=Q`
