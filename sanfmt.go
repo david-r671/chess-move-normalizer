@@ -6,6 +6,11 @@
 // itself: "0-0" vs "O-O", "N:e4" vs "Nxe4", "e8Q" vs "e8=Q", "Qh5ch" vs
 // "Qh5+". This package resolves that surface variation into one form
 // without knowing anything about legal chess positions.
+//
+// Older sources often use descriptive notation ("P-K4", "N-KB3")
+// instead of algebraic; ParseDescriptive and NormalizeDescriptive
+// handle that separately, since converting it needs to know whose
+// move it is.
 package sanfmt
 
 import (
@@ -106,8 +111,10 @@ func (m Move) String() string {
 // "O-O" / "O-O-O", and check/mate as "+" / "#".
 //
 // Normalize only cleans up notation - it has no board and cannot tell
-// whether the move is legal. Descriptive notation ("P-K4") is out of
-// scope; only algebraic input is accepted.
+// whether the move is legal. It accepts algebraic input only; for
+// descriptive notation ("P-K4") see ParseDescriptive and
+// NormalizeDescriptive, which need to be told whose move it is since
+// descriptive squares are named relative to each side.
 func Normalize(input string) (string, error) {
 	m, err := Parse(input)
 	if err != nil {

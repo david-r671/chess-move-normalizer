@@ -19,8 +19,9 @@ algebraic notation in and gives clean SAN out.
 
 It does not know chess rules. It has no board and cannot tell you
 whether a move is legal - it only cleans up how a syntactically valid
-algebraic move is written. Descriptive notation ("P-K4", "N-KB3") is
-out of scope.
+move is written. Older descriptive notation ("P-K4", "N-KB3") is
+handled separately from algebraic input, since converting it requires
+knowing whose move it is.
 
 ## What it normalizes
 
@@ -67,6 +68,24 @@ moves, err := sanfmt.NormalizeMoveList("1. e4 e5 2. Nf3 Nc6 1-0")
 If some tokens fail to parse, `err` reports all of them (joined) but
 `moves` still holds every token that normalized successfully. Comments,
 NAG codes, and parenthesized variations aren't supported yet.
+
+`NormalizeDescriptive` converts descriptive notation instead. Its
+squares are named relative to the player moving ("K4" is `e4` for
+White, `e5` for Black), so it takes a second argument saying whose
+move it is:
+
+```go
+clean, err := sanfmt.NormalizeDescriptive("Q-KR5ch", true) // white to move
+// clean == "Qh5+"
+```
+
+It only handles moves that name a destination square: pushes, piece
+moves, and side-qualified squares (`QR-K1`, `N-QB3`). Descriptive
+captures name the piece being captured rather than a square (`NxP`,
+`QPxP`), which needs a board to resolve, so those return an error
+instead of a guess - same for a rook/knight/bishop-file square with no
+`Q`/`K` qualifier (`Q-R5`), which is only unambiguous with a board in
+front of you.
 
 As a command line filter, one move per line:
 
