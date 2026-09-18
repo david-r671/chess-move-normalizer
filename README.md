@@ -87,7 +87,7 @@ instead of a guess - same for a rook/knight/bishop-file square with no
 `Q`/`K` qualifier (`Q-R5`), which is only unambiguous with a board in
 front of you.
 
-As a command line filter, one move per line:
+As a command line filter, one move per line (or as separate arguments):
 
 ```
 $ printf '1. e4\n0-0\ne8Q\nQh5mate\n' | go run ./cmd/sanfmt
@@ -99,6 +99,18 @@ Qh5#
 
 Moves that don't parse are reported on stderr and the command exits
 non-zero, without stopping processing of the rest of the input.
+
+Pass `-descriptive` to read descriptive notation instead. Since
+descriptive squares depend on whose move it is, the command assumes
+the first move is White's and alternates from there; pass `-black` if
+the first move is actually Black's:
+
+```
+$ printf 'P-K4\nP-K4\nN-KB3\n' | go run ./cmd/sanfmt -descriptive
+e4
+e5
+Nf3
+```
 
 ## Status
 
