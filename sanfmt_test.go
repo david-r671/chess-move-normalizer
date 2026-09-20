@@ -165,6 +165,41 @@ func TestNormalizeMoveList(t *testing.T) {
 			"",
 			nil,
 		},
+		{
+			"brace comment is dropped",
+			"1. e4 {best by test} e5 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"comment glued to surrounding moves",
+			"1. e4{best by test}e5 2. Nf3",
+			[]string{"e4", "e5", "Nf3"},
+		},
+		{
+			"unterminated comment runs to end of input",
+			"1. e4 e5 {adjourned here",
+			[]string{"e4", "e5"},
+		},
+		{
+			"nag code is dropped",
+			"1. e4 $1 e5 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"parenthesized variation is dropped",
+			"1. e4 e5 (1... c5 2. Nf3) 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"nested variation is dropped",
+			"1. e4 e5 (1... c5 (1... e6) 2. Nf3) 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
+		{
+			"comment and variation and nag together",
+			"1. e4 {king's pawn} e5 $1 (1... c5) 2. Nf3 Nc6",
+			[]string{"e4", "e5", "Nf3", "Nc6"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -201,6 +236,37 @@ func TestNormalizeMoveListErrors(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("got[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestStripAnnotations(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"no annotations", "1. e4 e5", []string{"1.", "e4", "e5"}},
+		{"brace comment", "1. e4 {best by test} e5", []string{"1.", "e4", "e5"}},
+		{"comment glued to surrounding moves", "1. e4{best by test}e5", []string{"1.", "e4", "e5"}},
+		{"unterminated brace comment", "1. e4 {adjourned", []string{"1.", "e4"}},
+		{"variation", "1. e4 e5 (1... c5) 2. Nf3", []string{"1.", "e4", "e5", "2.", "Nf3"}},
+		{"variation glued to surrounding moves", "1. e4 e5(1... c5)2. Nf3", []string{"1.", "e4", "e5", "2.", "Nf3"}},
+		{"nested variation", "1. e4 e5 (1... c5 (1... e6) 2. Nf3) 2. Nf3", []string{"1.", "e4", "e5", "2.", "Nf3"}},
+		{"unmatched closing paren doesn't go negative", "1. e4) e5 (1... c5) Nf3", []string{"1.", "e4", "e5", "Nf3"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := strings.Fields(stripAnnotations(tc.input))
+			if len(got) != len(tc.want) {
+				t.Fatalf("stripAnnotations(%q) fields = %v, want %v", tc.input, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("stripAnnotations(%q) fields[%d] = %q, want %q", tc.input, i, got[i], tc.want[i])
+				}
+			}
+		})
 	}
 }
 

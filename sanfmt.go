@@ -28,6 +28,7 @@ var (
 	moveNumberRe     = regexp.MustCompile(`^\d+\.+\s*`)
 	moveNumberOnlyRe = regexp.MustCompile(`^\d+\.+$`)
 	resultRe         = regexp.MustCompile(`^(1-0|0-1|1/2-1/2|\*)$`)
+	nagRe            = regexp.MustCompile(`^\$\d+$`)
 	castleRe         = regexp.MustCompile(`^[Oo0](-?[Oo0]){1,2}$`)
 	promoRe          = regexp.MustCompile(`(?i)(?:[=/])?\(?([qrbns])\)?$`)
 	baseRe           = regexp.MustCompile(`^([KQRBNkqrbnSs]?)([a-h]?[1-8]?)([xX:]?)([a-h][1-8])$`)
@@ -171,18 +172,22 @@ func Parse(input string) (Move, error) {
 // and dropped rather than treated as moves; a move number glued to the
 // following move ("1.e4") is handled the same way by Normalize itself.
 //
-// Comments in braces, NAG codes ($1), and parenthesized variations are
-// not supported - movetext must be a plain move sequence.
+// Comments in braces ("{good move}"), NAG codes ("$1"), and parenthesized
+// variations - including variations nested inside other variations - are
+// recognized and dropped rather than treated as moves or fed to Normalize.
+// Only the moves of the main line are returned; a variation's moves are
+// discarded along with the parentheses that mark it, since it isn't part
+// of the line NormalizeMoveList is tracking.
 //
-// NormalizeMoveList returns every move that normalized successfully, in
-// order. If one or more tokens failed to parse, it also returns a
-// non-nil error built with errors.Join describing all of them; the
-// caller can still use the moves that did succeed.
+// NormalizeMoveList returns every mainline move that normalized
+// successfully, in order. If one or more tokens failed to parse, it also
+// returns a non-nil error built with errors.Join describing all of them;
+// the caller can still use the moves that did succeed.
 func NormalizeMoveList(input string) ([]string, error) {
 	var moves []string
 	var errs []error
-	for _, field := range strings.Fields(input) {
-		if moveNumberOnlyRe.MatchString(field) || resultRe.MatchString(field) {
+	for _, field := range strings.Fields(stripAnnotations(input)) {
+		if moveNumberOnlyRe.MatchString(field) || resultRe.MatchString(field) || nagRe.MatchString(field) {
 			continue
 		}
 		clean, err := Normalize(field)
@@ -193,6 +198,48 @@ func NormalizeMoveList(input string) ([]string, error) {
 		moves = append(moves, clean)
 	}
 	return moves, errors.Join(errs...)
+}
+
+// stripAnnotations removes brace-delimited comments and parenthesized
+// variations from PGN movetext. Each removed span is replaced with a
+// single space rather than deleted outright, so a comment or variation
+// with no surrounding whitespace ("e4{comment}e5") doesn't glue the
+// tokens on either side of it into one unparseable field.
+//
+// Variations nest ("(1. e4 (1. d4) e5)"), so parentheses are tracked
+// with a depth counter rather than matched pairwise; an unterminated
+// comment runs to the end of the input, matching how a truncated PGN
+// file would be read.
+func stripAnnotations(s string) string {
+	var b strings.Builder
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '{':
+			b.WriteByte(' ')
+			if end := strings.IndexByte(s[i:], '}'); end >= 0 {
+				i += end
+			} else {
+				i = len(s) - 1
+			}
+		case c == '(':
+			if depth == 0 {
+				b.WriteByte(' ')
+			}
+			depth++
+		case c == ')':
+			if depth > 0 {
+				depth--
+				if depth == 0 {
+					b.WriteByte(' ')
+				}
+			}
+		case depth == 0:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 func extractSuffix(s string) (suffix, rest string) {

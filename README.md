@@ -66,8 +66,15 @@ moves, err := sanfmt.NormalizeMoveList("1. e4 e5 2. Nf3 Nc6 1-0")
 ```
 
 If some tokens fail to parse, `err` reports all of them (joined) but
-`moves` still holds every token that normalized successfully. Comments,
-NAG codes, and parenthesized variations aren't supported yet.
+`moves` still holds every token that normalized successfully. Comments
+in braces, NAG codes (`$1`), and parenthesized variations (including
+nested ones) are recognized and dropped along with the moves inside
+them - only the main line comes back:
+
+```go
+moves, err := sanfmt.NormalizeMoveList("1. e4 {best by test} e5 $1 (1... c5 2. Nf3) 2. Nf3 Nc6")
+// moves == []string{"e4", "e5", "Nf3", "Nc6"}
+```
 
 `NormalizeDescriptive` converts descriptive notation instead. Its
 squares are named relative to the player moving ("K4" is `e4` for
@@ -114,9 +121,9 @@ Nf3
 
 ## Status
 
-Single moves and plain PGN movetext (move numbers and results stripped,
-no comments or variations) are handled; no legality checking. See the
-test file for the exact set of input forms currently handled.
+Single moves and PGN movetext (move numbers and results stripped,
+comments/NAGs/variations dropped) are handled; no legality checking.
+See the test file for the exact set of input forms currently handled.
 
 ## License
 
