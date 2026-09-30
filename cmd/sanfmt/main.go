@@ -6,7 +6,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	sanfmt "github.com/david-r671/chess-move-normalizer"
 )
@@ -14,7 +16,29 @@ import (
 func main() {
 	descriptive := flag.Bool("descriptive", false, `parse moves as descriptive notation ("P-K4") instead of algebraic`)
 	black := flag.Bool("black", false, "the first move is Black's rather than White's; sides alternate after that")
+	pgn := flag.Bool("pgn", false, "treat the input as PGN movetext: drop move numbers, results, comments, NAGs and variations")
 	flag.Parse()
+
+	if *pgn {
+		if *descriptive || *black {
+			fmt.Fprintln(os.Stderr, "sanfmt: -pgn cannot be combined with -descriptive or -black")
+			os.Exit(2)
+		}
+		var text string
+		if args := flag.Args(); len(args) > 0 {
+			text = strings.Join(args, " ")
+		} else {
+			// Read everything at once: a brace comment can span lines,
+			// so the text can't be split per line before it is parsed.
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "sanfmt: reading stdin:", err)
+				os.Exit(1)
+			}
+			text = string(data)
+		}
+		os.Exit(runPGN(text))
+	}
 
 	var moves []string
 	if args := flag.Args(); len(args) > 0 {
@@ -34,6 +58,21 @@ func main() {
 		}
 	}
 	os.Exit(run(moves, *descriptive, !*black))
+}
+
+// runPGN normalizes a block of movetext and prints the mainline moves,
+// one per line. Moves that did normalize are printed even when other
+// tokens failed, matching what NormalizeMoveList returns.
+func runPGN(text string) int {
+	moves, err := sanfmt.NormalizeMoveList(text)
+	for _, m := range moves {
+		fmt.Println(m)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
 }
 
 // run normalizes each move in turn. In descriptive mode, white tracks

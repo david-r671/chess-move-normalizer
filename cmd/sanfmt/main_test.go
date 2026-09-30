@@ -48,6 +48,40 @@ func TestRunAlgebraic(t *testing.T) {
 	}
 }
 
+func TestRunPGN(t *testing.T) {
+	var code int
+	out, errOut := captureOutput(t, func() {
+		code = runPGN("1. e4 {a comment\nover two lines} e5 $1 (1... c5) 2. Nf3 Nc6 1-0\n")
+	})
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if errOut != "" {
+		t.Errorf("stderr = %q, want empty", errOut)
+	}
+	want := "e4\ne5\nNf3\nNc6\n"
+	if out != want {
+		t.Errorf("stdout = %q, want %q", out, want)
+	}
+}
+
+func TestRunPGNReportsBadTokens(t *testing.T) {
+	var code int
+	out, errOut := captureOutput(t, func() {
+		code = runPGN("1. e4 zz9 e5")
+	})
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if errOut == "" {
+		t.Error("stderr = empty, want a parse error reported")
+	}
+	want := "e4\ne5\n"
+	if out != want {
+		t.Errorf("stdout = %q, want %q", out, want)
+	}
+}
+
 func TestRunDescriptiveAlternatesSides(t *testing.T) {
 	var code int
 	out, _ := captureOutput(t, func() {

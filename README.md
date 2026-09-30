@@ -119,6 +119,20 @@ e5
 Nf3
 ```
 
+Pass `-pgn` to read movetext instead. The whole input is treated as one
+block, so comments that span lines work, and it goes through
+`NormalizeMoveList`: move numbers, results, comments, NAGs and
+variations are dropped and the mainline comes out one move per line.
+It can't be combined with `-descriptive` or `-black`.
+
+```
+$ echo '1. e4 {king pawn} e5 2. Nf3 Nc6 1-0' | go run ./cmd/sanfmt -pgn
+e4
+e5
+Nf3
+Nc6
+```
+
 ## Status
 
 Single moves and PGN movetext (move numbers and results stripped,
